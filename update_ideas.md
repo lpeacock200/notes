@@ -2,12 +2,14 @@
 New model:
 ```
 class FeatureRating
+  attribute :rating
+  attribute :review_text
+
   belongs_to :activity
   belongs_to :user
   belongs_to :trip_feature
-  attribute :rating
-  attribute :review_text
 end
+
 #Should be unique to a user, activity, and feature
 add_index :feature_ratings, [:user_id, :activity_id, :trip_feature_id], unique: true
 ```
@@ -48,6 +50,7 @@ class User
   has_many :trips
   # a list of TripFeature that the user is interested in having included in their trip (entered during onboarding)
   has_many :requested_trip_features, class_name: 'TripFeature'
+  has_many :feature_ratings
 End
 
 
@@ -75,16 +78,18 @@ class TripActivityFeatures
     @trip = trip
   end
 
-  # return all sparse trip_features by way of a query across activites_trips
-  # and activites_trip_features, group_by trip_feature_id having count <= 2
-  def sparse_trip_features_to_review; end
+  # return all sparse trip_features for a trip by way of an association
+  # query across activites_trips and activites_trip_features, group_by
+  # trip_feature_id having count <= 2
+  def sparse_trip_features; end
 
+  #return the trip_features to rate for an activity
   def sparse_trip_features_for_activity(activity)
     # First get all the sparse features for this trip
-    trip_sparse_features = sparse_trip_features_to_review
+    all_features = sparse_trip_features
 
     # next get all features for this activity that are included in the above list
-    features = activity.trip_features.where(trip_feature_id: trip_sparse_features.ids)
+    features = activity.trip_features.where(trip_feature_id: all_features.ids)
 
     if features.length > 3
         #use ranked_preferences_per_trip_location to apply a ranked order to the
@@ -92,9 +97,9 @@ class TripActivityFeatures
     end
   end
 
-  # return all unique tripfeatures across trips for a location sorted by
-  # occurrence count. this could be cached to reduce queries, or stored
-  # daily/weekly in a table
+  # return all unique trip_features across trips for a location sorted by
+  # occurrence count, as a measure of popularity. this could be cached to reduce
+  # queries, or stored daily/weekly in a table
   def ranked_preferences_per_trip_location; end
 end
 
