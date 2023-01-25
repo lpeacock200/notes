@@ -12,7 +12,7 @@ class FeatureRating
   belongs_to :trip_feature
 end
 
-#Should be unique to a user, activity, and feature
+# Should be unique to a user, activity, and feature
 add_index :feature_ratings, [:user_id, :activity_id, :trip_feature_id], unique: true
 ```
 Existing models
@@ -26,10 +26,10 @@ class Activity
 end
 
 class Location
-  #all trips taking place in this location
+  # all trips taking place in this location
   has_many :trips
 
-  #all available activites
+  # all available activites
   has_many :activites
 end
 
@@ -75,30 +75,32 @@ end
 ```
 
 ## Activity Review Form Updates
-Encapsulate the business logic specific to choosing TripFeatures and FeatureRatings for a Trip and/or Activity in a class that can be used by the existing reviews controller.
+Encapsulate the business logic specific for choosing TripFeatures for a Trip and/or Activity in a class that can be used by the existing reviews controller.
 ```
 class TripActivityFeatures
-  #hardcoded or configurable business logic limits
+  # hardcoded or configurable business logic limits
   FEATURE_LIMIT = 3
   SPARSENESS_LIMIT = 2
   ACTIVITY_LIMIT = 5
 
   def initialize(trip); end
 
-  # Return sparse features across the given trip. This is done by querying across
-  # join tables activites_trips and activites_trip_features, and group_by
+  # Return sparse TripFeatures across the given Trip. This is done by querying across
+  # join tables activites_trips and activites_trip_features, group_by
   # trip_feature_id having count <= SPARSENESS_LIMIT.
   def sparse_trip_features; end
 
-  # Return all distinct trip_features across trips for a location sorted by
+  # Return all distinct TripFeatures across Trips for a Location sorted by
   # occurrence count, as a measure of popularity. This could be cached to reduce
   # queries, or stored daily/weekly in a table.
   def ranked_preferences_per_trip_location; end
 
-  #Return sparse TripFeatures for a given activity within the trip. This involves
-  #querying for all the given Activity's TripFeatures that are included in the set of
-  #ids returned by sparse_trip_feature. This could be condensed into a single query
-  #using a subquery or similar.
+  # Return sparse TripFeatures for a given Activity within the Trip. This involves
+  # querying for all the given Activity's TripFeatures that are included in the set of
+  # ids returned by sparse_trip_feature. This could be condensed into a single query
+  # using a subquery or similar. To limit the number of TripFeatures returned, sort based
+  # on the rankings from 'ranked_preferences_per_trip_location' and then limit or
+  # truncate the list.
   def sparse_trip_features_for_activity(activity); end
 end
 
@@ -107,22 +109,20 @@ end
 Rough updates to existing controller
 ```
 class TripReviewController
+  ...
+
   private
 
-  #called for get request, assumes we have a trip and activity already
-  def initialize_features_to_rate
-    @features_to_rate = TripActivityFeatures.new(@trip).sparse_trip_features_for_activity(@activity)
+  # Called from the action for a get request, assuming there is already a Trip and
+  # Activity known. Fetch the list of TripFeatures to rate via
+  # TripActivityFeatures::sparse_trip_features_for_activity. Then fetch the existing
+  # FeatureRatings matching the TripFeatures ids. Wrap the FeatureRatings objects
+  # (new and/or existing) in view objects for the form.
+  def initialize_features_to_rate; end
 
-    previous_ratings = FeatureRating.where(:user_id => @current_user.id, :activity_id => :@activity.id, :trip_feature_id =>[@features_to_rate])
-    # create empty ratings for features without ratings and wrap in decorators for view
-  end
-
-  #called if the request is a post
-  def save_feature_ratings
-    # pull ratings data from post content
-    # update or create FeatureRatings given current_user, activity,
-    # trip_feature, rating, and any review_text
-  end
+  # Called if the request is a post. Just pulls ratings data from post content
+  # and create or updates FeatureRatings given current_user, Activity, and TripFeature
+  def save_feature_ratings; end
 end
 
 ```
@@ -131,38 +131,26 @@ Questions:
 - What if a user doesn't leave a rating? Should that score as a FeatureRating with a different rating value to indicate 'skipped'?
 
 ## Final Review Page Updates
-Update TripActivityFeatures busines logic
+Add the following methods to the previous TripActivityFeatures class
 ```
 class TripActivityFeatures
   ...
 
-  # Reuse query from 'sparse_trip_features' with the only change
-  # being a return of features with count >= 3. Limit the number returned by
-  # ranking against the most popular location features (as in sparse_trip_features_for_activity)
-  # and returning just the top ranking ones
+  # Return all distinct Activites across Trips for a Location reverse sorted by
+  # occurrence count, as a measure of (non) popularity. This could be cached to reduce
+  # queries, or stored daily/weekly in a table. By limiting on the least popular activites
+  # we gain more inclusive data. (see notes at bottom)
+  def ranked_activites_per_trip_location; end
+
+  # Reuse the query from 'sparse_trip_features' with the only change
+  # being a return of TripFeatures with count >= 3.
   def non_sparse_trip_features(limit_count = FEATURE_LIMIT); end
 
-  #return a hash of features => [activites]
-  def activites_by_non_sparse_features
-    trip_features = non_sparse_trip_features
-
-    feature_activites = {}
-    # for each trip_feature found, get the ranked activites. need to do this query
-    # per feature in a loop because doing it across all features in a single query
-    # will make separating actives per features difficult/upredictable
-    trip_features.each do |trip_feature|
-      # Similar to ranking popular features in ranked_preferences_per_trip_location,
-      # the strategy here is rank activites per location across all user trips, or
-      # all user ActivityBookings, but sort in ascending rank by occurrence count so
-      # that we prioritize less popular activites to gain more info. This ranking
-      # data can be a cached from a query or stored as a seperate table that only
-      # updates daily/weekly/etc. We use this ordered data to sort and limit the
-      # activities shown per feature.
-        activites = Activity.where(:trip_feature_id = trip_feature.id, :trip_id => @trip.id) # ... also join and order via ranking data
-        feature_activites[trip_feature] = activites
-    end
-    feature_activites
-  end
+  # Return a hash of TripFeature => [Activites]
+  # It first fetches TripFeatures from non_sparse_trip_features. For each,
+  # it queries to get a set of matching Activites from the Trip. The Activites
+  # are sorted and limited based on the ranks from ranked_activites_per_trip_location.
+  def activites_by_non_sparse_features; end
 end
 ```
 Updates to new controller for Additional Info section
@@ -172,40 +160,20 @@ class TripFinalReviewController
 
   private
 
-  #used in get request
-  def initialize_feature_activites
-    trip_features = TripActivityFeatures.new(@trip)
+  # Called for the get request. First get the non-sparse features and matching
+  # activites from TripActivityFeatures::activites_by_non_sparse_features. Then
+  # loop through all the Activites to create view objects that encapsulate each
+  # TripFeature + Activity + FeatureRating.
+  def initialize_feature_activites; end
 
-    #get the non-sparse features with applied limit
-    @feature_activites = trip_features.activites_by_non_sparse_features
-
-    #below is just prepping data for the view
-    #wrap everything in view objects with the found features, activites, and ratings
-    @activites_per_feature = {}
-    @feature_activites.each_pair do |feature, activities|
-        #for each activity/feature/reating, wrap it in a view object
-        activity_ratings = []
-
-        #find any existing ratings for this feature, user, and array of activites
-        ratings = FeatureRating.where(:user_id => @current_user.id, :activity_id => [activities.ids], :trip_feature_id => feature.id)
-
-        activites.each do |activity|
-          #use the found rating or create a new empty one
-          actvity_ratings << ActivityRating.new(activity, rating) #view object with rating and trip_feature info
-        end
-        @activites_per_feature[feature.id] = activity_ratings
-    end
-  end
-
-  #for post
-  def save_feature_ratings
-    #receive back a list of ratings data to store as FeatureRating objects
-  end
+  # Called for the post request. Just receive back a list of Ratings data to store
+  # as FeatureRating objects.
+  def save_feature_ratings; end
 end
 ```
 Questions/thoughts
 - Can there ever be existing ratings for these features? If the user could rate from somewhere else, we'd want to filter those selections out of this page.
-- From the mockup, we'd need a separate Activity model that represents a specific booking of that Activity by the user on a particular trip, which would include the date and other info. Call it ActivityBooking. We can include that object in the appropriate query result and pass to the view. It shouldn't affect the overall flow of ratings / features for this execise. It's possible it adds one level of indirection as a Trip could have Activites :through => ActivityBookings, etc.
+- From the mockup, we'd need a separate model that represents a specific booking of an Activity by the user on a particular trip, which would include the date and other info. Call it ActivityBooking. We can include that object in the appropriate query result and pass to the view. It shouldn't affect the overall flow of ratings / features for this execise. It's possible it adds one level of indirection as a Trip could have Activites :through => ActivityBookings, etc.
 - This ^ assumes we don't handle different FeatureRatings for the same Activity in a different trip for the same user.
 - Options for how to limit the activites per feature on the Final Review Page(s):
   - Prioritize activites linked to fewer trips or ActivityBookings. Advantage is allowing new or lesser known activites to get visibility and collecting more data.
