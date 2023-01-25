@@ -1,3 +1,5 @@
+(included code is Ruby-ish pseudocode)
+
 ## Relevant Rails Models + Associations
 New model:
 ```
