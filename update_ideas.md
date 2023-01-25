@@ -95,7 +95,9 @@ class TripActivityFeatures
 
     if features.length > 3
         #use ranked_preferences_per_trip_location to apply a ranked order to the
-        #features and only take top 3. This could be applied automatically via a #rankings table linked to the Location, but it's likely small/fast #enough to do it in memory to start with
+        #features and only take top 3. This could be applied automatically via a
+        #rankings table linked to the Location, but it's likely small/fast #enough 
+        #to do it in memory to start with
     end
   end
 
