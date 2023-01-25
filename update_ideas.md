@@ -4,8 +4,8 @@
 New model:
 ```
 class FeatureRating
-  attribute :rating
-  attribute :review_text
+  attribute :rating #smallint
+  attribute :review_text #text
 
   belongs_to :activity
   belongs_to :user
@@ -133,4 +133,38 @@ end
 ```
 
 ## Final Review Page Updates
+Update TripActivityFeatures
+```
+class TripActivityFeatures
+  ...
 
+  # Reuse query from 'sparse_trip_features_for_activity' with the only change
+  # being a return of features with count >= 3
+  # page and limit_count allow this to be used for a multipage form or
+  # rating all activites on same page
+  def non_sparse_trip_features(page, limit_count = FEATURE_LIMIT)
+  end
+
+  def
+    # First get all the non-sparse features for this trip
+    all_features = sparse_trip_features
+
+    # next get all features for this activity that are included in the above list
+    features = activity.trip_features.where(trip_feature_id: all_features.ids)
+
+    if features.length > 3
+        #use ranked_preferences_per_trip_location to apply a ranked order to the
+        #features and only take top 3. This could be applied automatically via a #rankings table linked to the Location, but it's likely small/fast
+        #enough to do it in memory to start with
+    end
+  end
+
+
+  def activities_for_features(limit_count = ACTIVITY_LIMIT)
+  end
+end
+```
+Updates to new controller for Additional Info section
+```
+
+```
