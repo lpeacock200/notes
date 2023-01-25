@@ -26,11 +26,11 @@ class Activity
 end
 
 class Location
-    #all trips taking place in this location
-    has_many :trips
+  #all trips taking place in this location
+  has_many :trips
 
-    #all available activites
-    has_many :activites
+  #all available activites
+  has_many :activites
 end
 
 class Trip
