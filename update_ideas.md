@@ -61,7 +61,7 @@ class Trip
 
   # The list of activities that were included in this traveler's trip
   has_and_belongs_to_many :activities
-  has_many_and_belongs_to_many trip_features
+  has_and_belongs_to_many :trip_features
   ...
 End
 
@@ -80,7 +80,7 @@ class TripFeature
   attribute :id
   attribute :name # eg "Hiking", "Wine Tasting", "Monkeys"
   has_and_belongs_to_many :activities
-  has_many_and_belongs_to_many :trips
+  has_and_belongs_to_many :trips
 end
 
 class ActivityBooking
