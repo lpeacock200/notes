@@ -31,6 +31,7 @@ add_index :feature_ratings, [:user_id, :activity_id, :trip_feature_id], unique: 
 (review_text limit is arbitrary, just some bound)
 
 ### Other Relevant Models
+(note: using HABTM associations for brevity)
 ```
 class Activity
   attribute :id
@@ -222,9 +223,39 @@ end
 Questions/thoughts
 - Can there ever be existing ratings for these features? If the user could rate from somewhere else, we'd want to filter those selections out of this page.
 - From the mockup, we'd need a separate model that represents a specific booking of an Activity by the user on a particular trip, which would include the date and other info. Call it ActivityBooking. We can include that object in the appropriate query result and pass to the view. It shouldn't affect the overall flow of ratings / features for this execise. It's possible it adds one level of indirection as a Trip could have Activites :through => ActivityBookings, etc.
-    - By linking a TripRating to an Activity, which will be the same across different Trips for the same User, the User in this case can only give it a rating once. For this scope, that seems OK since having contrasting FeatureRatings for the same Activity from the same User in different Trips means we'd more likely be focusing on aspects of the booking, such as guide, time of year, etc.
+    - By linking a TripRating to an Activity, which will be the same across different Trips for the same User, the User in this case can only give it a rating once. For this scope, that seems OK since having contradicting FeatureRatings for the same Activity from the same User in different Trips means we'd more likely be focusing on aspects of the booking, such as guide, time of year, etc.
 - Options for how to limit the Activites per feature on the Final Review Page(s):
   - Prioritize activites linked to fewer trips or ActivityBookings. Advantage is allowing new or lesser known activites to get visibility and collecting more data. This is the option chosen.
   - Prioritize activites with the most trips or ActivityBookings. Advantage is focusing on what most people already like. This may result in a more stagnant user experience as the same activites always rise to the top of searches / automated itineraries.
 - To decide on which Activites and TripFeatures are surfaced, we join against popularity / rankings tables that are created and maintained separately. For the first iteration of this feature, the queries to get rankings could be done at the time of request and applied as a subquery or applied as an in-memory filter after Activites or TripFeatures are fetched.
   - The rankings tables could be helpful in other queries / features as it's probably a common filter and sorting requirement
+
+
+
+
+## Misc notes
+Super messy query for returning sparse_trip_features, this can be more rails-ified
+```
+subquery = %Q(SELECT activities_trip_features.trip_feature_id FROM  activities_trip_features inner join activities_trips on activities_trips.activity_id = activities_trip_features.activity_id where activities_trips.trip_id in (?) GROUP BY activities_trip_features.trip_feature_id HAVING (COUNT(activities_trip_features.trip_feature_id) <= ?))
+TripFeature.where("id in (#{subquery})", 1, 2)
+```
+And this query joined and sorted by the rankings table
+```
+SELECT "trip_features".* FROM "trip_features"
+LEFT JOIN location_feature_rankings on location_feature_rankings.trip_feature_id=trip_features.id
+WHERE (trip_features.id in (
+    SELECT activities_trip_features.trip_feature_id
+    FROM  activities_trip_features
+    INNER JOIN activities_trips ON activities_trips.activity_id = activities_trip_features.activity_id
+    WHERE activities_trips.trip_id in (1)
+    GROUP BY activities_trip_features.trip_feature_id
+    HAVING (COUNT(activities_trip_features.trip_feature_id) <= 2)))
+AND location_feature_rankings.location_id=1
+ORDER BY location_feature_rankings.popularity_rank DESC;
+```
+
+Example query for Activites matching particular Trip and TripFeature
+```
+Activity.joins(:trip_features).joins(:trips).where(:trip_features =>{:id => [3]}, :trips => {:id => 1})
+```
+
