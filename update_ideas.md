@@ -30,7 +30,7 @@ add_index :feature_ratings, [:user_id, :activity_id, :trip_feature_id], unique: 
 
 (review_text limit is arbitrary, just some bound)
 
-### Existing models
+### Other Relevant Models
 ```
 class Activity
   attribute :id
