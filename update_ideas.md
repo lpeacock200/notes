@@ -50,8 +50,8 @@ class Location
   # all trips taking place in this location
   has_many :trips
 
-  # all available activites
-  has_many :activites
+  # all available activities
+  has_many :activities
 end
 
 class Trip
@@ -79,7 +79,7 @@ End
 class TripFeature
   attribute :id
   attribute :name # eg "Hiking", "Wine Tasting", "Monkeys"
-  has_and_belongs_to_many :activites
+  has_and_belongs_to_many :activities
   has_many_and_belongs_to_many :trips
 end
 
@@ -104,7 +104,7 @@ Popular Location Features Job
 
 Popular Location Actvities Job
 - Fetch counts of each distinct Activity across Trips for a Location. Across all Trips associated with a Location, how often was each Activity in a Trip.
-- Update location_activites_rankings entries for each Location with new popularity_rank values based on the sorted results of counts
+- Update location_activities_rankings entries for each Location with new popularity_rank values based on the sorted results of counts
 
 ### Related tables
 
@@ -120,7 +120,7 @@ Popular Location Actvities Job
 
 (Indexed by location_id)
 
-**location_activites_rankings**
+**location_activities_rankings**
 | Column | Type |
 | --- | ----------- |
 | id | bigint |
@@ -134,7 +134,7 @@ Popular Location Actvities Job
 
 
 ## Activity Review Form Updates
-Encapsulate the business logic specific for choosing TripFeatures for a Trip and/or Activity in a class that can be used by the existing reviews and the new final activites reviews controller.
+Encapsulate the business logic specific for choosing TripFeatures for a Trip and/or Activity in a class that can be used by the existing reviews and the new final activities reviews controller.
 ```
 class TripActivityFeatures
   # hardcoded or configurable business logic limits
@@ -145,7 +145,7 @@ class TripActivityFeatures
   def initialize(trip); end
 
   # Return sparse TripFeatures across the given Trip. This is done by querying across
-  # join tables trip_trip_features, activities_trips, and activites_trip_features, group_by
+  # join tables trip_trip_features, activities_trips, and activities_trip_features, group_by
   # trip_feature_id having count <= SPARSENESS_LIMIT.
   def sparse_trip_features; end
 
@@ -194,13 +194,13 @@ class TripActivityFeatures
   # being a return of TripFeatures with count > SPARSENESS_LIMIT,
   def non_sparse_trip_features; end
 
-  # Return a hash of TripFeature => [Activites]
+  # Return a hash of TripFeature => [activities]
   # It first fetches TripFeatures from non_sparse_trip_features. For each,
-  # it queries to get a set of matching Activites from the Trip. To limit the
-  # number of Activites returned, join and reverse sort against the location_activites_rankings
+  # it queries to get a set of matching Activities from the Trip. To limit the
+  # number of Activities returned, join and reverse sort against the location_activities_rankings
   # table. Reverse sort to surface the least popular activties in a location in the interest of
-  # gathering more data and surfacing more/newer Activites.
-  def activites_by_non_sparse_features; end
+  # gathering more data and surfacing more/newer activities.
+  def activities_by_non_sparse_features; end
 end
 ```
 Updates to new controller for Additional Info section
@@ -211,14 +211,14 @@ class TripFinalReviewController
   private
 
   # Called for the get request. First get the non-sparse features and matching
-  # activites from TripActivityFeatures::activites_by_non_sparse_features. Then
-  # loop through all the Activites to create view objects that encapsulate each
+  # activities from TripActivityFeatures::activities_by_non_sparse_features. Then
+  # loop through all the Activities to create view objects that encapsulate each
   # TripFeature + Activity + FeatureRating.
   # We are doing this on one page, instead of paginating, to keep with the intention of
   # 'one more thing before you go'. Paginating instead would just involve tracking with
   # a params where in the list of non_sparse_trip_features the page is and then offset+limit or
   # just limit in memory/code since the result set is small.
-  def initialize_feature_activites; end
+  def initialize_feature_activities; end
 
   # Called for the post request. Just receive back a list of Ratings data to store
   # as FeatureRating objects.
@@ -227,12 +227,12 @@ end
 ```
 Questions/thoughts
 - Can there ever be existing ratings for these features? If the user could rate from somewhere else, we'd want to filter those selections out of this page.
-- From the mockup, we'd need a separate model that represents a specific booking of an Activity by the user on a particular trip, which would include the date and other info. Call it ActivityBooking. We can include that object in the appropriate query result and pass to the view. It shouldn't affect the overall flow of ratings / features for this execise. It's possible it adds one level of indirection as a Trip could have Activites :through => ActivityBookings, etc.
+- From the mockup, we'd need a separate model that represents a specific booking of an Activity by the user on a particular trip, which would include the date and other info. Call it ActivityBooking. We can include that object in the appropriate query result and pass to the view. It shouldn't affect the overall flow of ratings / features for this execise. It's possible it adds one level of indirection as a Trip could have Activities :through => ActivityBookings, etc.
     - By linking a TripRating to an Activity, which will be the same across different Trips for the same User, the User in this case can only give it a rating once. For this scope, that seems OK since having contradicting FeatureRatings for the same Activity from the same User in different Trips means we'd more likely be focusing on aspects of the booking, such as guide, time of year, etc.
-- Options for how to limit the Activites per feature on the Final Review Page(s):
-  - Prioritize activites linked to fewer trips or ActivityBookings. Advantage is allowing new or lesser known activites to get visibility and collecting more data. This is the option chosen.
-  - Prioritize activites with the most trips or ActivityBookings. Advantage is focusing on what most people already like. This may result in a more stagnant user experience as the same activites always rise to the top of searches / automated itineraries.
-- To decide on which Activites and TripFeatures are surfaced, we join against popularity / rankings tables that are created and maintained separately. For the first iteration of this feature, the queries to get rankings could be done at the time of request and applied as a subquery or applied as an in-memory filter after Activites or TripFeatures are fetched.
+- Options for how to limit the Activities per feature on the Final Review Page(s):
+  - Prioritize activities linked to fewer trips or ActivityBookings. Advantage is allowing new or lesser known activities to get visibility and collecting more data. This is the option chosen.
+  - Prioritize activities with the most trips or ActivityBookings. Advantage is focusing on what most people already like. This may result in a more stagnant user experience as the same activities always rise to the top of searches / automated itineraries.
+- To decide on which Activities and TripFeatures are surfaced, we join against popularity / rankings tables that are created and maintained separately. For the first iteration of this feature, the queries to get rankings could be done at the time of request and applied as a subquery or applied as an in-memory filter after Activities or TripFeatures are fetched.
   - The rankings tables could be helpful in other queries / features as it's probably a common filter and sorting requirement
 
 
@@ -259,7 +259,7 @@ AND location_feature_rankings.location_id=1
 ORDER BY location_feature_rankings.popularity_rank DESC;
 ```
 
-Example query for Activites matching particular Trip and TripFeature
+Example query for Activities matching particular Trip and TripFeature
 ```
 Activity.joins(:trip_features).joins(:trips).where(:trip_features =>{:id => [3]}, :trips => {:id => 1})
 ```
