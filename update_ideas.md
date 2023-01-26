@@ -10,11 +10,16 @@ class FeatureRating
   belongs_to :activity
   belongs_to :user
   belongs_to :trip_feature
+
+  enum :rating, { not_recommended: 0, ok: 1, recommended: 2 }, default: :not_recommended
+  scope :adequate, -> {where('rating > ?', 0)}
 end
 
-# Should be unique to a user, activity, and feature
+# Should be unique to a [user, activity, and feature]
 add_index :feature_ratings, [:user_id, :activity_id, :trip_feature_id], unique: true
+add_index :feature_ratings, :activity_id
 ```
+- Rating values could also be anchored at 0 for OK with negative values for more negative feedback. Aggregate functions run on results would have negative values offsetting positive values which might be better in some cases. The default value should still be the zero rating.
 
 **feature_ratings**
 | Column | Type |
