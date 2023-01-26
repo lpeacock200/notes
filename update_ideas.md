@@ -144,8 +144,8 @@ class TripActivityFeatures
 
   def initialize(trip); end
 
-  # Return sparse TripFeatures across the given Trip. This is done by querying across
-  # join tables trip_trip_features, activities_trips, and activities_trip_features, group_by
+  # Return sparse preferred TripFeatures across activites in the given Trip. This is done by querying across
+  # join tables trip_features_trips, activities_trips, and activities_trip_features, group_by
   # trip_feature_id having count <= SPARSENESS_LIMIT.
   def sparse_trip_features; end
 
@@ -239,9 +239,9 @@ Questions/thoughts
 
 
 ## Misc notes
-Super messy query for returning sparse_trip_features, this can be more rails-ified
+Super messy query for returning sparse_trip_features scoped, this can be more rails-ified
 ```
-subquery = %Q(SELECT activities_trip_features.trip_feature_id FROM  activities_trip_features inner join activities_trips on activities_trips.activity_id = activities_trip_features.activity_id where activities_trips.trip_id in (?) GROUP BY activities_trip_features.trip_feature_id HAVING (COUNT(activities_trip_features.trip_feature_id) <= ?))
+subquery = %Q(SELECT activities_trip_features.trip_feature_id FROM activities_trip_features inner join activities_trips on activities_trips.activity_id = activities_trip_features.activity_id inner join trip_features_trips on trip_features_trips.trip_feature_id = activities_trip_features.trip_feature_id where activities_trips.trip_id in (?) GROUP BY activities_trip_features.trip_feature_id HAVING (COUNT(activities_trip_features.trip_feature_id) <= ?))
 TripFeature.where("id in (#{subquery})", 1, 2)
 ```
 And this query joined and sorted by the rankings table
@@ -263,4 +263,3 @@ Example query for Activities matching particular Trip and TripFeature
 ```
 Activity.joins(:trip_features).joins(:trips).where(:trip_features =>{:id => [3]}, :trips => {:id => 1})
 ```
-
